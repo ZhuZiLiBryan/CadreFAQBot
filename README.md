@@ -38,7 +38,7 @@ Domain terms (Visitor, Reply, Outcome, Citation, Source, Contact Line, Fallback 
 | **Answers render as plain text; only `https://` markdown links are rendered** | Rendering model-written markdown or HTML would let an injected link, image, or script reach the page. |
 | **Follow-ups supported via client-sent history (last 6 messages)** | "How long does *it* take?" works without server-side sessions. History is treated as context, never as a source. |
 | **Small Talk is a fourth outcome, tightly boxed** | Greetings shouldn't get "I don't have that information". Because it is uncited model text, it is capped at 300 characters, may not contain links, digits, `$`, emails, or phones, and is replaced with a fixed greeting if it does. |
-| **Single process, in-memory state** | Rate limits and metrics need no Redis. The cost is that it must run as one uvicorn worker and one replica. |
+| **Single process, in-memory state** | Rate limits and metrics need no Redis; no cross-origin requests to no CORS handling. The cost is that it must run as one uvicorn worker and one replica. |
 
 ## Output guardrails
 
@@ -190,3 +190,10 @@ describe("welcome message", () => {
   });
 });
 ```
+
+The development loop I used for TDD with an initial test writing subagent was helpful in catching errors.  For example, while implementing M5, the /api/{path:path} route accepted every method, so it fully matched requests like GET /api/chat and POST /api/health. Those paths exist, but only for the other method, which should give a 405. Instead the catch-all matched them and raised 404, hiding the 405. Two existing tests caught it:
+
+- test_get_on_chat_is_405_with_the_error_envelope_and_an_allow_header
+- test_health_only_allows_get
+
+Both got 404 instead of 405.  Catching this allowed me to apply a fix of I setting app.router.default. Starlette calls it only when nothing matched, not even partially. So 405s on real routes stay intact, and my handler handles everything else: JSON 404 for /api/..., files or index.html for the rest.

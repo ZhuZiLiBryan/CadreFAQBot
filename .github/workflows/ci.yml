@@ -41,3 +41,10 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t cadre-faq-bot .

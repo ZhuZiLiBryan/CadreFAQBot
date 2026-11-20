@@ -1,0 +1,15 @@
+# Secrets and VCS
+.env
+.git
+
+# Local environments and build output (rebuilt inside the image)
+.venv
+node_modules
+frontend/node_modules
+frontend/dist
+evals/results
+
+# Caches
+__pycache__
+.pytest_cache
+.ruff_cache

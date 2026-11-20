@@ -199,11 +199,11 @@ Scope:
 - CI: add a job that builds the Docker image.
 
 Acceptance:
-- [ ] `docker build` succeeds; CI Docker job passes
-- [ ] Running container with `--env-file .env`: `/api/health` → 200, `/` serves the UI, a deep non-API path serves `index.html`, unknown `/api/x` → JSON 404
-- [ ] Image contains no `.env` or secrets (inspect image filesystem/history)
+- [x] `docker build` succeeds locally; CI Docker job added (passes once the PR runs)
+- [x] Running container with `--env-file .env`: `/api/health` → 200, `/` serves the UI, a deep non-API path serves `index.html`, unknown `/api/x` → JSON 404
+- [x] Image contains no `.env` or secrets (inspect image filesystem/history)
 - [ ] Deployed Railway URL: `/api/health` → 200 and one manual chat works
-- [ ] CLAUDE.md documents the Docker build/run commands and the Railway setup steps
+- [x] CLAUDE.md documents the Docker build/run commands and the Railway setup steps
 
 ## M6 Output guardrails
 

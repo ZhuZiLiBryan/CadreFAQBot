@@ -6,7 +6,7 @@ When briefing the test-writer or verifier subagent, give it **Shared spec** plus
 
 ## Progress
 
-- [ ] M1 Backend scaffold + CI
+- [x] M1 Backend scaffold + CI
 - [ ] M2 Frontend scaffold + CI
 - [ ] M3 Chat contract without model
 - [ ] M4 Model integration, system prompt, Prompt Version, minimal evals

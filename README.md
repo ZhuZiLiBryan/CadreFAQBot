@@ -125,3 +125,17 @@ uv run python -m evals.run      # real model calls; costs quota
 ```
 
 Docker: one multi-stage image (Node builds the frontend, Python serves everything on `$PORT` with one worker). The API key is supplied at runtime and never baked into the image.
+
+
+### Awareness of Code
+Although Claude remains a helpful tool, additional caution was exercised.  To keep myself in the loop, I evaluated implementations and tests after each milestone and took judgement calls on what to keep versus discard.
+For example, a following test was proposed by Claude which was inflexible and restrictive, and was removed as it wasn't a good regression test.
+```
+describe("welcome message", () => {
+  it("shows a welcome message telling the Visitor the bot answers from Cadre's FAQ", () => {
+    render(<App />);
+    expect(screen.getByText(/welcome|hi|hello/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/FAQ/).length).toBeGreaterThan(0);
+  });
+});
+```

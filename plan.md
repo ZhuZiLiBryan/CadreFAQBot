@@ -7,7 +7,7 @@ When briefing the test-writer or verifier subagent, give it **Shared spec** plus
 ## Progress
 
 - [x] M1 Backend scaffold + CI
-- [ ] M2 Frontend scaffold + CI
+- [x] M2 Frontend scaffold + CI
 - [ ] M3 Chat contract without model
 - [ ] M4 Model integration, system prompt, Prompt Version, minimal evals
 - [ ] M5 Docker + Railway deploy (MVP)
@@ -119,7 +119,7 @@ Acceptance:
 - [x] `uv sync --locked` succeeds from a clean clone
 - [x] `uv run uvicorn backend.main:app --reload` serves `GET /api/health` → 200 `{"status":"ok"}`
 - [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` pass
-- [ ] CI workflow runs the backend job and passes on the PR
+- [x] CI workflow runs the backend job and passes on the PR
 - [x] `.env` is git-ignored; `.env.example` is committed
 - [x] CLAUDE.md commands verified and Status updated
 
@@ -134,11 +134,11 @@ Scope:
 - CI: add a frontend job: `npm ci`, `npm run lint`, `npm test`, `npm run build` in `frontend/`.
 
 Acceptance:
-- [ ] `npm ci`, `npm run lint`, `npm test`, `npm run build` pass in `frontend/`
-- [ ] `npm run dev` shows the shell; `/api/health` is reachable through the Vite proxy when the backend runs
-- [ ] Tests cover: chips fill the input; Send disabled for empty, whitespace-only, and over-limit input; counter updates; privacy notice is present
+- [x] `npm ci`, `npm run lint`, `npm test`, `npm run build` pass in `frontend/`
+- [x] `npm run dev` shows the shell; `/api/health` is reachable through the Vite proxy when the backend runs
+- [x] Tests cover: chips fill the input; Send disabled for empty, whitespace-only, and over-limit input; counter updates; privacy notice is present
 - [ ] CI frontend job passes on the PR
-- [ ] CLAUDE.md Status updated
+- [x] CLAUDE.md Status updated
 
 ## M3 Chat contract without model
 

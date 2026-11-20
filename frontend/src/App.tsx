@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import "./App.css";
 import {
   ChatError,
@@ -65,11 +65,35 @@ function distinctSources(citations: Citation[]): Source[] {
   return sources;
 }
 
+const MARKDOWN_LINK = /(?<!!)\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/gi;
+
+/**
+ * Safe rendering only, not a second allowlist: `[text](https://...)` becomes an
+ * anchor; everything else (other markdown, HTML, other schemes) stays literal text.
+ * The server has already enforced the FAQ allowlist.
+ */
+function renderAnswer(answer: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  for (const match of answer.matchAll(MARKDOWN_LINK)) {
+    const index = match.index ?? 0;
+    if (index > last) nodes.push(answer.slice(last, index));
+    nodes.push(
+      <a key={index} href={match[2]} target="_blank" rel="noopener noreferrer">
+        {match[1]}
+      </a>,
+    );
+    last = index + match[0].length;
+  }
+  if (last < answer.length) nodes.push(answer.slice(last));
+  return nodes;
+}
+
 function ReplyBubble({ reply }: { reply: ChatReply }) {
   const sources = distinctSources(reply.citations);
   return (
     <div className="message assistant">
-      <p>{reply.answer}</p>
+      <p>{renderAnswer(reply.answer)}</p>
       {sources.length > 0 && (
         <ul className="citations" aria-label="Citations">
           {sources.map((source) => (

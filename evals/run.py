@@ -77,7 +77,7 @@ async def run_case(case: dict, client) -> dict:
     request = ChatRequest(message=case["question"], history=case.get("history") or [])
     started = time.perf_counter()
     try:
-        reply, result = await handle_chat(request, client)
+        reply, result, _reasons = await handle_chat(request, client)
     except UpstreamError as exc:
         return _result(
             case,

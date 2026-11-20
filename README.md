@@ -200,3 +200,9 @@ The development loop I used for TDD with an initial test writing subagent was he
 Both got 404 instead of 405.  Catching this allowed me to apply a fix of I setting app.router.default. Starlette calls it only when nothing matched, not even partially. So 405s on real routes stay intact, and my handler handles everything else: JSON 404 for /api/..., files or index.html for the rest.
 
 Some performance considerations that I caught before Claude was the infinite growth of IPs collected for the Rate Limiter.  The original implementation had no way to clear IPs so for a long running process, IPs could easily pile up and eventually run out of memory.  I implemented a pruning function that would check for IPs with its most recent requests beyond the rate limiting window, which would clear out old functions.  This introduces a tradeoff because for requests we're always checking for Stale IPs, but prevents process crash due to overflowing memory.
+
+
+## Limitations and What's Next
+
+- Known limitation for Rate limiter due to Railway
+    - Client identification is unverified: the last X-Forwarded-For address may identify a proxy rather than the visitor.

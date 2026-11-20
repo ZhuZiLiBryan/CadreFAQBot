@@ -12,7 +12,7 @@ When briefing the test-writer or verifier subagent, give it **Shared spec** plus
 - [x] M4 Model integration, system prompt, Prompt Version, minimal evals
 - [ ] M5 Docker + Railway deploy (MVP)
 - [x] M6 Output guardrails
-- [ ] M7 Rate limiting
+- [x] M7 Rate limiting (known issue: per-IP limit unreliable on Railway, see the last M7 acceptance item)
 - [ ] M8 Full evals
 - [ ] M9 Error handling by type + retries
 - [ ] M10 Observability
@@ -242,7 +242,7 @@ Scope:
 Acceptance:
 - [x] Tests (fake clock): the 11th request in a minute → 429 with `Retry-After`; window rolls over; distinct IPs are independent; a spoofed left-most `X-Forwarded-For` entry doesn't evade the limit; daily cap and UTC reset; 422s don't consume quota
 - [x] Frontend shows the distinct 429 messages (covered in M3 tests; the 429 texts match the backend's)
-- [ ] Against the deployed Railway URL: real 429s show the distinct messages in the UI, and the right-most `X-Forwarded-For` finding is recorded in CLAUDE.md (manual, needs the deploy)
+- [ ] Against the deployed Railway URL: the right-most `X-Forwarded-For` finding is recorded in CLAUDE.md (done, but the result was negative: 429s were interleaved with 200s, so the per-IP key is not stable on Railway; cause unconfirmed, follow-up needed), and real 429s show the distinct messages in the UI (not checked)
 - [x] All verification commands pass
 
 ## M8 Full evals

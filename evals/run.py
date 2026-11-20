@@ -29,9 +29,11 @@ def score_case(case: dict, outcome: str, cited_ids: list[int]) -> bool:
     if outcome not in allowed:
         return False
     expected_citations = case.get("expected_citations") or []
-    if not expected_citations: # No citations needed for this case
+    # No citations needed for this case
+    if not expected_citations:
         return True
-    return any(n in cited_ids for n in expected_citations) # check at least one citation in result
+    # Check at least one expected citation is in the result
+    return any(n in cited_ids for n in expected_citations)
 
 
 def pass_rates_by_category(results: list[dict]) -> dict[str, float]:

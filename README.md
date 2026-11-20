@@ -126,6 +126,35 @@ uv run python -m evals.run      # real model calls; costs quota
 
 Docker: one multi-stage image (Node builds the frontend, Python serves everything on `$PORT` with one worker). The API key is supplied at runtime and never baked into the image.
 
+## Data Schema
+The chat endpoint is POST /api/chat. The frontend sends it the visitor’s new message along with recent conversation history.
+
+A request looks like this:
+
+```
+{
+  "message": "How do we get started?",
+  "history": [
+    { "role": "user", "content": "What does Cadre do?" },
+    { "role": "assistant", "content": "Cadre helps organizations with AI." }
+  ]
+}
+```
+
+The endpoint checks that the new message contains something after spaces are trimmed and is no longer than 500 characters by default. History is optional. When supplied, it can contain up to six messages by default, ordered oldest first. Each history entry must have a user or assistant role and content between 1 and 2,000 characters. Extra fields are rejected.
+
+The model client returns one of four outcomes, and the server uses it to assemble the reply:
+
+| Outcome | Meaning | What the visitor receives |
+|---|---|---|
+| answered | The FAQ covers the question. | The answer and any resolved citations (no contact needed) |
+| partial | The FAQ covers only part of the question. | The answer, any resolved citations, and Cadre’s contact details. |
+| unanswered | The FAQ does not provide the information. | A fixed fallback statement and Cadre’s contact details. |
+| smalltalk | The visitor makes a conversational request, such as a greeting. | A brief reply, typically without citations. |
+
+Note that much output validation is handled on the server side to limit model trust.  For citations, the model returns FAQ entry numbers. The server looks up those entries and supplies their questions and source links. It drops numbers that do not match an entry. For an unanswered result, the server replaces the model’s answer with its own fixed fallback and clears the citations.  This keeps exception errors out of the response, allowing users to see only what we want them to see.  Hallucinated citation are verified and actively rejected, limiting hallucinations.
+
+Note that exception schemas are also normalized.  Exception handlers in `backend/main.py` turn different types of erros into same JSON schema `(error, message, contact)`.  The frontend receives this and catches erros through `api.ts` (which sends the request on behalf of frontend).
 
 ### Awareness of Code
 Although Claude remains a helpful tool, additional caution was exercised.  To keep myself in the loop, I evaluated implementations and tests after each milestone and took judgement calls on what to keep versus discard.

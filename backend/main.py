@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import Receive, Scope, Send
 
 from backend.chat import handle_chat
+from backend.config import daily_request_cap, rate_limit_per_minute
 from backend.faq import get_faq
 from backend.model_client import (
     ModelClient,
@@ -20,6 +21,13 @@ from backend.model_client import (
     required_env,
 )
 from backend.prompts import prompt_version
+from backend.rate_limit import (
+    Clock,
+    RateLimiter,
+    client_ip,
+    get_clock,
+    get_limiter,
+)
 from backend.schemas import ChatRequest, ChatResponse, Contact, ErrorResponse
 
 logger = logging.getLogger("backend")
@@ -105,10 +113,39 @@ async def health() -> dict[str, str | int]:
     }
 
 
+_LIMIT_MESSAGES = {
+    "rate_limited": (
+        "You're sending messages quickly. Please wait a moment and try again."
+    ),
+    "daily_limit": (
+        "The FAQ bot has reached its daily limit. Please try again tomorrow."
+    ),
+}
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(
-    request: ChatRequest, client: Annotated[ModelClient, Depends(get_model_client)]
-) -> ChatResponse:
+    request: ChatRequest,
+    http_request: Request,
+    client: Annotated[ModelClient, Depends(get_model_client)],
+    limiter: Annotated[RateLimiter, Depends(get_limiter)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> ChatResponse | JSONResponse:
+    # Runs in the body, not a dependency, so a 422 is decided before any quota
+    # is counted.
+    rejection = limiter.check_and_record(
+        client_ip(http_request),
+        clock(),
+        rate_limit_per_minute(),
+        daily_request_cap(),
+    )
+    if rejection is not None:
+        return error_response(
+            429,
+            rejection.code,
+            _LIMIT_MESSAGES[rejection.code],
+            headers={"Retry-After": str(rejection.retry_after)},
+        )
     reply, _, _ = await handle_chat(request, client)
     return reply
 

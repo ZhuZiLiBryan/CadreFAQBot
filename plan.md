@@ -240,9 +240,10 @@ Scope:
 - State is safe under concurrent async requests, bounded in memory (stale IPs pruned), and uses an injectable clock for tests.
 
 Acceptance:
-- [ ] Tests (fake clock): the 11th request in a minute → 429 with `Retry-After`; window rolls over; distinct IPs are independent; a spoofed left-most `X-Forwarded-For` entry doesn't evade the limit; daily cap and UTC reset; 422s don't consume quota
-- [ ] Frontend shows the distinct 429 messages (covered in M3 tests; re-verify against real responses)
-- [ ] All verification commands pass
+- [x] Tests (fake clock): the 11th request in a minute → 429 with `Retry-After`; window rolls over; distinct IPs are independent; a spoofed left-most `X-Forwarded-For` entry doesn't evade the limit; daily cap and UTC reset; 422s don't consume quota
+- [x] Frontend shows the distinct 429 messages (covered in M3 tests; the 429 texts match the backend's)
+- [ ] Against the deployed Railway URL: real 429s show the distinct messages in the UI, and the right-most `X-Forwarded-For` finding is recorded in CLAUDE.md (manual, needs the deploy)
+- [x] All verification commands pass
 
 ## M8 Full evals
 

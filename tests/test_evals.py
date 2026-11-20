@@ -12,6 +12,8 @@ Assumed interface in ``evals.run``:
 from pathlib import Path
 
 import pytest
+
+from backend.faq import load_faq
 from evals.run import (
     filter_cases,
     load_cases,
@@ -19,8 +21,6 @@ from evals.run import (
     pass_rates_by_category,
     score_case,
 )
-
-from backend.faq import load_faq
 
 CASES_PATH = Path(__file__).resolve().parent.parent / "evals" / "cases.yaml"
 

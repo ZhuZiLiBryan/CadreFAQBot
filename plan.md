@@ -116,12 +116,12 @@ Scope:
 - `.github/workflows/ci.yml`: backend job on PRs to `main` and pushes to `main`: `uv sync --locked`, `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest`.
 
 Acceptance:
-- [ ] `uv sync --locked` succeeds from a clean clone
-- [ ] `uv run uvicorn backend.main:app --reload` serves `GET /api/health` → 200 `{"status":"ok"}`
-- [ ] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` pass
+- [x] `uv sync --locked` succeeds from a clean clone
+- [x] `uv run uvicorn backend.main:app --reload` serves `GET /api/health` → 200 `{"status":"ok"}`
+- [x] `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` pass
 - [ ] CI workflow runs the backend job and passes on the PR
-- [ ] `.env` is git-ignored; `.env.example` is committed
-- [ ] CLAUDE.md commands verified and Status updated
+- [x] `.env` is git-ignored; `.env.example` is committed
+- [x] CLAUDE.md commands verified and Status updated
 
 ## M2 Frontend scaffold + CI
 

@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Status
-M1 (Backend scaffold + CI), M2 (Frontend scaffold + CI), M3 (Chat contract without model) and M4 (Model integration, system prompt, Prompt Version, minimal evals) done: uv project, FastAPI `GET /api/health` (with `prompt_version`, `faq_entries`) and `POST /api/chat` against an injectable `ModelClient` (`backend/model_client.py`: real `OpenRouterClient`, one retry on invalid model output, SDK errors become `UpstreamError`), `backend/prompts.py` (`load_prompt()`, `prompt_version()`) with `prompt_files/system.md`, shared chat path `backend/chat.py`, FAQ parser (`backend/faq.py`), startup refusal without `OPENROUTER_API_KEY`/`OPENROUTER_MODEL`, error envelope on every `/api/*` error, backend CI; React + Vite + TS chat UI wired to `/api/chat`, ESLint, Vitest, frontend CI; `evals/run.py` (scoring, `--case`/`--category`, saves each run to `evals/results/<UTC timestamp>/` as `results.jsonl`, `report.md`, `prompt.txt`), `evals/prompt_versions.py` (maps Prompt Version hashes to git commits). The starter-case eval run passed 12/12 (`google/gemini-2.5-flash-lite`, Prompt Version `4a5ca6cb94b4`). Next: M5 (Docker + Railway deploy) in `plan.md`. Existing files: `backend/prompt_files/faq.md` (the FAQ, in its parsed format), `evals/cases.yaml` (starter eval cases), `GLOSSARY.md`, `docs/adr/`.
+M1 (Backend scaffold + CI), M2 (Frontend scaffold + CI), M3 (Chat contract without model) and M4 (Model integration, system prompt, Prompt Version, minimal evals) done: uv project, FastAPI `GET /api/health` (with `prompt_version`, `faq_entries`) and `POST /api/chat` against an injectable `ModelClient` (`backend/model_client.py`: real `OpenRouterClient`, one retry on invalid model output, SDK errors become `UpstreamError`), `backend/prompts.py` (`load_prompt()`, `prompt_version()`) with `prompt_files/system.md`, shared chat path `backend/chat.py`, FAQ parser (`backend/faq.py`), startup refusal without `OPENROUTER_API_KEY`/`OPENROUTER_MODEL`, error envelope on every `/api/*` error, backend CI; React + Vite + TS chat UI wired to `/api/chat`, ESLint, Vitest, frontend CI; `evals/run.py` (scoring, `--case`/`--category`, saves each run to `evals/results/<UTC timestamp>/` as `results.jsonl`, `report.md`, `prompt.txt`), `evals/prompt_versions.py` (maps Prompt Version hashes to git commits). The starter-case eval run passed 12/12 (`google/gemini-2.5-flash-lite`, Prompt Version `4a5ca6cb94b4`). M5 (Docker + Railway deploy) is implemented and verified locally (Dockerfile, `.dockerignore`, `railway.toml`, SPA static serving, CI Docker job); the Railway deploy itself is pending my manual step. Next: M6 (Output guardrails) in `plan.md`. Existing files: `backend/prompt_files/faq.md` (the FAQ, in its parsed format), `evals/cases.yaml` (starter eval cases), `GLOSSARY.md`, `docs/adr/`.
 
 ## What the project is
 
@@ -26,7 +26,7 @@ A small public customer-support chatbot for Cadre AI, an AI strategy and impleme
 - `Dockerfile`: multi-stage; Node builds the frontend, then the Python stage installs with uv and serves everything.
 
 ## Development commands
-Backend commands below were verified in M1 and frontend commands in M2; Docker and eval commands are still planned. Each milestone verifies the commands it introduces and updates this section to match.
+Backend commands below were verified in M1, frontend commands in M2, eval commands in M4 and Docker commands in M5. Each milestone verifies the commands it introduces and updates this section to match.
 
 This is a uv project: one root `pyproject.toml`, committed `uv.lock` and `.python-version` (3.12); `backend/` and `evals/` are packages in it. Always go through uv; don't use `pip`, `requirements.txt` or a hand-made venv.
 
@@ -45,6 +45,12 @@ This is a uv project: one root `pyproject.toml`, committed `uv.lock` and `.pytho
 - Lint: `cd frontend && npm run lint`
 - Type-check and build: `cd frontend && npm run build`
 - Run frontend tests: `cd frontend && npm test`
+
+### Docker and Railway
+- Build: `docker build -t cadre-faq-bot .` (Node 22 stage builds the frontend; Python 3.12 stage installs with `uv sync --locked --no-dev`, runs as non-root user `app`, one uvicorn worker)
+- Run: `docker run --rm -p 8000:8000 --env-file .env cadre-faq-bot`, then check `http://localhost:8000/api/health` and `/`. Secrets come from `--env-file` at run time only; `.dockerignore` keeps `.env` out of the build context.
+- Static serving: `backend/main.py` serves `frontend/dist` (override with `FRONTEND_DIST`) through the router's no-match handler, so real `/api` routes and the JSON 404 win. With no build present (local dev, CI backend job) the API runs alone.
+- Railway setup (one-time, by me): create a project from this GitHub repo; `railway.toml` supplies the Dockerfile builder, health check `/api/health` and one replica. In the service's Variables tab set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL`; Railway injects `PORT`. Generate a public domain under Settings > Networking, then check `/api/health` and send one chat. Never add replicas or workers.
 
 ### Evals (only with my permission)
 - Run all: `uv run python -m evals.run`

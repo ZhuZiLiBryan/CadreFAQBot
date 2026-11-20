@@ -8,10 +8,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from backend.chat import handle_chat
 from backend.faq import get_faq
-from backend.model_client import ModelClient, UpstreamError, get_model_client
-from backend.prompts import load_prompt
-from backend.reply import assemble_reply
+from backend.model_client import (
+    ModelClient,
+    UpstreamError,
+    get_model_client,
+    required_env,
+)
+from backend.prompts import prompt_version
 from backend.schemas import ChatRequest, ChatResponse, Contact, ErrorResponse
 
 logger = logging.getLogger("backend")
@@ -19,6 +24,8 @@ logger = logging.getLogger("backend")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    required_env("OPENROUTER_API_KEY")  # a missing variable stops the app
+    required_env("OPENROUTER_MODEL")
     get_faq()  # a malformed faq.md raises here, so the app refuses to start
     yield
 
@@ -81,16 +88,17 @@ async def handle_unexpected_error(request: Request, exc: Exception) -> JSONRespo
 
 
 @app.get("/api/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+async def health() -> dict[str, str | int]:
+    return {
+        "status": "ok",
+        "prompt_version": prompt_version(),
+        "faq_entries": len(get_faq().entries),
+    }
 
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest, client: Annotated[ModelClient, Depends(get_model_client)]
 ) -> ChatResponse:
-    faq = get_faq()
-    result = await client.complete(
-        load_prompt(), [m.model_dump() for m in request.history], request.message
-    )
-    return assemble_reply(result, faq)
+    reply, _ = await handle_chat(request, client)
+    return reply

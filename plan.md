@@ -9,7 +9,7 @@ When briefing the test-writer or verifier subagent, give it **Shared spec** plus
 - [x] M1 Backend scaffold + CI
 - [x] M2 Frontend scaffold + CI
 - [x] M3 Chat contract without model
-- [ ] M4 Model integration, system prompt, Prompt Version, minimal evals
+- [x] M4 Model integration, system prompt, Prompt Version, minimal evals
 - [ ] M5 Docker + Railway deploy (MVP)
 - [ ] M6 Output guardrails
 - [ ] M7 Rate limiting
@@ -179,13 +179,13 @@ Scope:
 - `evals/run.py` (`uv run python -m evals.run`): loads `evals/cases.yaml`, runs each case through the same in-process code path as `/api/chat` (so server-side assembly applies), prints per case the question, Outcome, answer, cited IDs, served model, and pass/fail, then a per-category pass-rate table. Options: `--case <id>`, `--category <name>`. A case passes when its Outcome is in `expected_outcome` and, if `expected_citations` is non-empty, at least one expected ID is cited. Scoring is a pure function covered by pytest.
 
 Acceptance:
-- [ ] Tests (mocked SDK) assert the request: base URL, model, json_schema `response_format`, `require_parameters`, system prompt contains the FAQ, history and message order
-- [ ] Tests: invalid model output retried once then 503; SDK exception → 503; Prompt Version changes when either prompt file changes
-- [ ] `/api/health` returns `prompt_version` and `faq_entries`
-- [ ] Startup refuses to run without `OPENROUTER_API_KEY` / `OPENROUTER_MODEL`
-- [ ] Eval scoring unit-tested without network
-- [ ] With your permission: one eval run on the starter cases, output shared for manual review
-- [ ] All verification commands pass
+- [x] Tests (mocked SDK) assert the request: base URL, model, json_schema `response_format`, `require_parameters`, system prompt contains the FAQ, history and message order
+- [x] Tests: invalid model output retried once then 503; SDK exception → 503; Prompt Version changes when either prompt file changes
+- [x] `/api/health` returns `prompt_version` and `faq_entries`
+- [x] Startup refuses to run without `OPENROUTER_API_KEY` / `OPENROUTER_MODEL`
+- [x] Eval scoring unit-tested without network
+- [x] With your permission: one eval run on the starter cases, output shared for manual review (12/12 pass on `google/gemini-2.5-flash-lite`, Prompt Version `4a5ca6cb94b4`)
+- [x] All verification commands pass
 
 ## M5 Docker + Railway deploy (MVP)
 

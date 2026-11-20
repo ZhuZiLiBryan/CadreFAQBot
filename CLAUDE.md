@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Status
-Design settled; not yet scaffolded. Next: M1 (Backend scaffold + CI) in `plan.md`. Existing files: `backend/prompt_files/faq.md` (the FAQ, in its parsed format), `evals/cases.yaml` (starter eval cases), `GLOSSARY.md`, `docs/adr/`.
+M1 (Backend scaffold + CI) done: uv project, FastAPI `GET /api/health`, tests, ruff, backend CI. Next: M2 (Frontend scaffold + CI) in `plan.md`. Existing files: `backend/prompt_files/faq.md` (the FAQ, in its parsed format), `evals/cases.yaml` (starter eval cases), `GLOSSARY.md`, `docs/adr/`.
 
 ## What the project is
 
@@ -26,7 +26,7 @@ A small public customer-support chatbot for Cadre AI, an AI strategy and impleme
 - `Dockerfile`: multi-stage; Node builds the frontend, then the Python stage installs with uv and serves everything.
 
 ## Development commands
-Planned; not yet verified. Each milestone verifies the commands it introduces and updates this section to match.
+Backend commands below were verified in M1; frontend, Docker and eval commands are still planned. Each milestone verifies the commands it introduces and updates this section to match.
 
 This is a uv project: one root `pyproject.toml`, committed `uv.lock` and `.python-version` (3.12); `backend/` and `evals/` are packages in it. Always go through uv; don't use `pip`, `requirements.txt` or a hand-made venv.
 

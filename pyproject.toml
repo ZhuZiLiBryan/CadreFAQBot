@@ -1,0 +1,31 @@
+[project]
+name = "cadre-faq-bot"
+version = "0.1.0"
+description = "FAQ-only customer-support chatbot for Cadre AI."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "httpx",
+    "ruff",
+]
+
+[tool.uv]
+# An application, not a distributable library: backend/ and evals/ run from the repo root.
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

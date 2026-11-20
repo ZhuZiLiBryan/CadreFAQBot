@@ -1,0 +1,23 @@
+- type: answerable
+  question: "What does Cadre AI do, and does it work with manufacturing companies?"
+
+- type: answerable
+  question: "How can I book a call with an AI strategist?"
+
+- type: answerable
+  question: "What is the AI Maturity Index, and how do I get scored?"
+
+- type: answerable
+  question: "How does Cadre choose an LLM for a business?"
+
+- type: answerable
+  question: "What does Cadre say about protecting client data?"
+
+- type: partially_answerable
+  question: "What services does Cadre offer, and what is its exact hourly rate?"
+
+- type: unanswerable
+  question: "What is Cadre's exact hourly rate?"
+
+- type: unanswerable
+  question: "Where do existing clients sign in to track their AI tools and results?"

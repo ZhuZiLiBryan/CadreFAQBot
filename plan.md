@@ -11,7 +11,7 @@ When briefing the test-writer or verifier subagent, give it **Shared spec** plus
 - [x] M3 Chat contract without model
 - [x] M4 Model integration, system prompt, Prompt Version, minimal evals
 - [ ] M5 Docker + Railway deploy (MVP)
-- [ ] M6 Output guardrails
+- [x] M6 Output guardrails
 - [ ] M7 Rate limiting
 - [ ] M8 Full evals
 - [ ] M9 Error handling by type + retries
@@ -223,10 +223,10 @@ Scope (frontend):
 - The frontend's renderer is still deliberately narrow: `[text](url)` with an `https://` URL becomes `<a target="_blank" rel="noopener noreferrer">`; everything else (other markdown, HTML, `javascript:` URLs) stays literal text. This is safe rendering, not a second allowlist.
 
 Acceptance:
-- [ ] Unit tests for every reason above, including allowlist normalization (`www.`, trailing slash, case) and a link to a lookalike domain (`cadre.ai.evil.com`)
-- [ ] Contract test: an `answered` Reply citing only unknown IDs comes back `unanswered` with the Fallback Line
-- [ ] Frontend tests: allowlisted link renders as an anchor with `rel`/`target`; `javascript:`, `http://`, raw HTML, and image markdown render as text
-- [ ] All verification commands pass
+- [x] Unit tests for every reason above, including allowlist normalization (`www.`, trailing slash, case) and a link to a lookalike domain (`cadre.ai.evil.com`)
+- [x] Contract test: an `answered` Reply citing only unknown IDs comes back `unanswered` with the Fallback Line
+- [x] Frontend tests: allowlisted link renders as an anchor with `rel`/`target`; `javascript:`, `http://`, raw HTML, and image markdown render as text
+- [x] All verification commands pass
 
 ## M7 Rate limiting
 

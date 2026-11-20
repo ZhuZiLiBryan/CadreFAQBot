@@ -173,12 +173,12 @@ def test_unknown_citation_numbers_are_dropped(client):
     assert [c["faq_id"] for c in body["citations"]] == [23]
 
 
-def test_only_unknown_citation_numbers_leave_no_citations(client):
-    use_model(make_result("answered", "Details.", [9999]))
+def test_unknown_citation_numbers_are_dropped_and_valid_ones_kept(client):
+    use_model(make_result("answered", "Details.", [9999, 23]))
 
     body = post_chat(client, {"message": "Q?"}).json()
 
-    assert body["citations"] == []
+    assert [c["faq_id"] for c in body["citations"]] == [23]
     assert body["outcome"] == "answered"
 
 
@@ -278,11 +278,12 @@ def test_smalltalk_reply_passes_through_with_no_contact_line(client):
     }
 
 
-def test_answered_reply_has_null_contact_even_with_no_citations(client):
-    use_model(make_result("answered", "Answer.", []))
+def test_answered_reply_has_null_contact(client):
+    use_model(make_result("answered", "Answer.", [23]))
 
     body = post_chat(client, {"message": "Q?"}).json()
 
+    assert body["outcome"] == "answered"
     assert body["contact"] is None
 
 

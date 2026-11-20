@@ -109,7 +109,7 @@ async def health() -> dict[str, str | int]:
 async def chat(
     request: ChatRequest, client: Annotated[ModelClient, Depends(get_model_client)]
 ) -> ChatResponse:
-    reply, _ = await handle_chat(request, client)
+    reply, _, _ = await handle_chat(request, client)
     return reply
 
 

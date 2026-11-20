@@ -367,7 +367,7 @@ describe("rendering each Outcome", () => {
 
 describe("plain-text rendering of model text", () => {
   const HOSTILE_ANSWER =
-    "<script>alert(1)</script> **bold** <b>x</b> [click me](https://evil.example/phish) done";
+    "<script>alert(1)</script> **bold** <b>x</b> [click me](javascript:alert(1)) done";
 
   it("renders HTML and markdown in the answer literally", async () => {
     fetchMock.mockImplementation(async () => jsonResponse(reply({ answer: HOSTILE_ANSWER })));
@@ -380,7 +380,7 @@ describe("plain-text rendering of model text", () => {
     expect(text).toContain("<script>alert(1)</script>");
     expect(text).toContain("**bold**");
     expect(text).toContain("<b>x</b>");
-    expect(text).toContain("[click me](https://evil.example/phish)");
+    expect(text).toContain("[click me](javascript:alert(1))");
     expect(container.querySelector("script")).toBeNull();
     expect(container.querySelector("b, strong, em, i")).toBeNull();
   });

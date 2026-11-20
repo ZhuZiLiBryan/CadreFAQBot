@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Status
-M1 (Backend scaffold + CI) and M2 (Frontend scaffold + CI) done: uv project, FastAPI `GET /api/health`, tests, ruff, backend CI; React + Vite + TS chat UI shell (welcome, example chips, counter, privacy notice, no API calls yet), ESLint, Vitest, frontend CI. Next: M3 (Chat contract without model) in `plan.md`. Existing files: `backend/prompt_files/faq.md` (the FAQ, in its parsed format), `evals/cases.yaml` (starter eval cases), `GLOSSARY.md`, `docs/adr/`.
+M1 (Backend scaffold + CI), M2 (Frontend scaffold + CI) and M3 (Chat contract without model) done: uv project, FastAPI `GET /api/health` and `POST /api/chat` against an injectable `ModelClient` (`backend/model_client.py`; no real client yet, so un-overridden calls return 500), FAQ parser (`backend/faq.py`), error envelope on every `/api/*` error, backend CI; React + Vite + TS chat UI wired to `/api/chat` (history, Citations, Contact Line, loading and per-error bubbles), ESLint, Vitest, frontend CI. Next: M4 (Model integration, system prompt, Prompt Version, minimal evals) in `plan.md`. Existing files: `backend/prompt_files/faq.md` (the FAQ, in its parsed format), `evals/cases.yaml` (starter eval cases), `GLOSSARY.md`, `docs/adr/`.
 
 ## What the project is
 

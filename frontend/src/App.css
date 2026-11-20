@@ -101,3 +101,22 @@
   color: #5b6475;
   margin: 0;
 }
+
+.citations {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.85rem;
+  white-space: normal;
+}
+
+.contact {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #c9cfdd;
+  font-size: 0.85rem;
+  white-space: normal;
+}
+
+.message.error {
+  background: #fdecee;
+}

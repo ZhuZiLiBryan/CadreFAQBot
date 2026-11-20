@@ -4,7 +4,8 @@ A small public customer-support chatbot for [Cadre AI](https://cadre.ai), an AI 
 
 It ships as a single Docker service (React frontend + FastAPI backend on the same domain), intended for Railway.
 
-> **Status:** design is settled and documented; implementation proceeds milestone by milestone (see [`plan.md`](plan.md)). Commands below are the planned ones and are verified as each milestone lands.
+## Public URL
+https://cadrefaqbot-production.up.railway.app/
 
 ## How it works
 

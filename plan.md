@@ -8,7 +8,7 @@ When briefing the test-writer or verifier subagent, give it **Shared spec** plus
 
 - [x] M1 Backend scaffold + CI
 - [x] M2 Frontend scaffold + CI
-- [ ] M3 Chat contract without model
+- [x] M3 Chat contract without model
 - [ ] M4 Model integration, system prompt, Prompt Version, minimal evals
 - [ ] M5 Docker + Railway deploy (MVP)
 - [ ] M6 Output guardrails
@@ -154,16 +154,16 @@ Scope (backend):
 
 Scope (frontend):
 - Sending posts `{message, history}` where history is the last `MAX_HISTORY_MESSAGES` (6) prior messages; assistant history entries carry only the `answer` text.
-- Renders a Reply as plain text (newlines preserved, no HTML/markdown interpretation), a Citations list under it (link text = FAQ Entry question, href = its source URL(s)), and the Contact Line as a separate block with links built from `form_url` and `email`.
+- Renders a Reply as plain text (newlines preserved, no HTML/markdown interpretation), a Citations list under it (one link per distinct Source across the Reply's Citations, de-duplicated by URL; link text = the Source title, href = its URL; the FAQ Entry question is not shown), and the Contact Line as a separate block with links built from `form_url` and `email`.
 - Loading indicator while waiting; input disabled during a request.
 - Error bubbles with distinct Visitor-facing text for 422, 429 (`rate_limited` vs `daily_limit`), 503, 500, and network failure, each showing the Contact Line.
 
 Acceptance:
-- [ ] Parser tests: the real `faq.md` parses to 52 entries; each malformed variant (missing Sources, duplicate/out-of-order number, http URL, empty body) fails with a line number
-- [ ] Contract tests (mocked client) for each Outcome, unknown citation numbers dropped, Contact Line/Fallback behavior, and every 422 case (empty, whitespace, over-length message, too many history items, bad role, unknown field)
-- [ ] 503 on `UpstreamError`, 500 on other exceptions, neither leaks exception text
-- [ ] Frontend tests (mocked fetch): history capped at 6 and assistant entries carry answer text only, each Outcome renders correctly, model text containing `<script>`/markdown renders literally, each error bubble
-- [ ] All backend and frontend verification commands pass
+- [x] Parser tests: the real `faq.md` parses to 52 entries; each malformed variant (missing Sources, duplicate/out-of-order number, http URL, empty body) fails with a line number
+- [x] Contract tests (mocked client) for each Outcome, unknown citation numbers dropped, Contact Line/Fallback behavior, and every 422 case (empty, whitespace, over-length message, too many history items, bad role, unknown field)
+- [x] 503 on `UpstreamError`, 500 on other exceptions, neither leaks exception text
+- [x] Frontend tests (mocked fetch): history capped at 6 and assistant entries carry answer text only, each Outcome renders correctly, model text containing `<script>`/markdown renders literally, each error bubble
+- [x] All backend and frontend verification commands pass
 
 ## M4 Model integration, system prompt, Prompt Version, minimal evals
 

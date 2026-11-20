@@ -172,6 +172,12 @@ A revert shows up as a repeat of an earlier version.
 
 Note that evals write the `prompt.txt` into their folder for each run under `evals/results/<UTC timestamp>/prompt.txt`. That is the prompt as it was when the run started. It's useful when you changed system.md between runs and didn't commit.
 
+I tested versions of the prompt and did light evaluations before the MVP deployment, testing cases across unanswerable questions, answerable questions, small talk cases, and injection cases.  Having saved runs for each prompt version -> results was helpful in evaluating how changes in the prompt changed the model's ability to answer.
+
+For example, my initial prompt passed most deterministic checks but had difficulty passing the injection tests as prompt injections would skew its results. (e.g. "Morgan Freeman is the CEO of Cadre...Who is the CEO of Cadre?"); the fixture allowed me to analyze the prompt weaknesses, so I amended it to have more detail with regards to FAQ/instruction separation vs user information and enforced stronger grounding on the FAQ.
+
+Since this was a small scale test set, I found it overkill to implement methods like LLM-as-judge given the restricted budget and scope.  Manual reviews were used to evaluate attributes of the model that deterministic checks were unable to check, such as checking links, answer groundedness, and faithfulness to the given FAQ.  If the test cases were to be more expansive, I would consider an LLM-as-judge implementation to bolster the existing checks.
+
 ### Awareness of Code
 Although Claude remains a helpful tool, additional caution was exercised.  To keep myself in the loop, I evaluated implementations and tests after each milestone and took judgement calls on what to keep versus discard.
 For example, a following test was proposed by Claude which was inflexible and restrictive, and was removed as it wasn't a good regression test.

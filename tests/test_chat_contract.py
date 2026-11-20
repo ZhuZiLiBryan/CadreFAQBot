@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from backend.faq import load_faq
 from backend.main import app
 from backend.model_client import ModelResult, UpstreamError, get_model_client
+from backend.prompts import load_prompt
 
 FORM_URL = "https://cadre.ai/contact"
 EMAIL = "hello@gocadre.ai"
@@ -304,6 +305,16 @@ def test_fake_client_receives_system_prompt_history_and_message(client):
     assert call["message"] == "Follow-up"
 
 
+def test_system_prompt_sent_to_the_model_is_load_prompt_with_the_faq(client):
+    fake = use_model(make_result("smalltalk", "Hi."))
+
+    post_chat(client, {"message": "Hello"})
+
+    system_prompt = fake.calls[0]["system_prompt"]
+    assert system_prompt == load_prompt()
+    assert load_faq().entries[1].question in system_prompt
+
+
 def test_message_is_trimmed_before_it_reaches_the_model(client):
     fake = use_model(make_result("smalltalk", "Hi."))
 
@@ -529,16 +540,9 @@ def test_unexpected_exception_text_does_not_leak(client):
     assert "RuntimeError" not in response.text
 
 
-def test_default_model_client_dependency_yields_internal_error(client):
-    assert get_model_client not in app.dependency_overrides
-
-    response = post_chat(client, {"message": "Q?"})
-
-    assert_error_envelope(response, 500, "internal_error")
-
-
-def test_dependency_failure_does_not_poison_later_requests(client):
-    post_chat(client, {"message": "Q?"})  # un-overridden: 500
+def test_a_failing_model_does_not_poison_later_requests(client):
+    use_model(error=RuntimeError("secret-boom"))
+    post_chat(client, {"message": "Q?"})  # 500
     use_model(make_result("smalltalk", "Hi."))
 
     response = post_chat(client, {"message": "Q?"})
@@ -565,7 +569,7 @@ def test_health_still_returns_ok(client):
     response = client.get("/api/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json()["status"] == "ok"
 
 
 # --- validation wins over the model dependency ---
@@ -612,14 +616,6 @@ def test_seven_history_items_are_422_without_a_model_override(client):
     response = post_chat(client, {"message": "Q?", "history": history})
 
     assert_error_envelope(response, 422, "invalid_request")
-
-
-def test_valid_request_without_a_model_override_is_still_500(client):
-    assert get_model_client not in app.dependency_overrides
-
-    response = post_chat(client, {"message": "A perfectly valid question?"})
-
-    assert_error_envelope(response, 500, "internal_error")
 
 
 # --- method not allowed ---

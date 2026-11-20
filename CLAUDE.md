@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Status
-M1 (Backend scaffold + CI), M2 (Frontend scaffold + CI) and M3 (Chat contract without model) done: uv project, FastAPI `GET /api/health` and `POST /api/chat` against an injectable `ModelClient` (`backend/model_client.py`; no real client yet, so un-overridden calls return 500), FAQ parser (`backend/faq.py`), error envelope on every `/api/*` error, backend CI; React + Vite + TS chat UI wired to `/api/chat` (history, Citations, Contact Line, loading and per-error bubbles), ESLint, Vitest, frontend CI. Next: M4 (Model integration, system prompt, Prompt Version, minimal evals) in `plan.md`. Existing files: `backend/prompt_files/faq.md` (the FAQ, in its parsed format), `evals/cases.yaml` (starter eval cases), `GLOSSARY.md`, `docs/adr/`.
+M1 (Backend scaffold + CI), M2 (Frontend scaffold + CI), M3 (Chat contract without model) and M4 (Model integration, system prompt, Prompt Version, minimal evals) done: uv project, FastAPI `GET /api/health` (with `prompt_version`, `faq_entries`) and `POST /api/chat` against an injectable `ModelClient` (`backend/model_client.py`: real `OpenRouterClient`, one retry on invalid model output, SDK errors become `UpstreamError`), `backend/prompts.py` (`load_prompt()`, `prompt_version()`) with `prompt_files/system.md`, shared chat path `backend/chat.py`, FAQ parser (`backend/faq.py`), startup refusal without `OPENROUTER_API_KEY`/`OPENROUTER_MODEL`, error envelope on every `/api/*` error, backend CI; React + Vite + TS chat UI wired to `/api/chat`, ESLint, Vitest, frontend CI; `evals/run.py` (scoring, `--case`/`--category`, saves each run to `evals/results/<UTC timestamp>/` as `results.jsonl`, `report.md`, `prompt.txt`), `evals/prompt_versions.py` (maps Prompt Version hashes to git commits). The starter-case eval run passed 12/12 (`google/gemini-2.5-flash-lite`, Prompt Version `4a5ca6cb94b4`). Next: M5 (Docker + Railway deploy) in `plan.md`. Existing files: `backend/prompt_files/faq.md` (the FAQ, in its parsed format), `evals/cases.yaml` (starter eval cases), `GLOSSARY.md`, `docs/adr/`.
 
 ## What the project is
 
@@ -32,7 +32,7 @@ This is a uv project: one root `pyproject.toml`, committed `uv.lock` and `.pytho
 
 ### Backend (repository root)
 - Install locked dependencies: `uv sync --locked`
-- Start API: `uv run uvicorn backend.main:app --reload`
+- Start API: `uv run uvicorn backend.main:app --reload --env-file .env` (copy `.env.example` to `.env` and set `OPENROUTER_API_KEY` first; the app refuses to start without it and `OPENROUTER_MODEL`. The backend does not read `.env` itself, only uvicorn's `--env-file` and `evals/run.py` do)
 - Run tests: `uv run pytest`
 - Run a single test: `uv run pytest tests/test_chat.py -k <test_name>`
 - Lint: `uv run ruff check .`
@@ -48,7 +48,8 @@ This is a uv project: one root `pyproject.toml`, committed `uv.lock` and `.pytho
 
 ### Evals (only with my permission)
 - Run all: `uv run python -m evals.run`
-- Filter: `--case <id>`, `--category <name>`; sample models: `--repeat N`
+- Filter: `--case <id>`, `--category <name>`. Each run writes `results.jsonl`, `report.md` and `prompt.txt` to `evals/results/<UTC timestamp>/` (git-ignored). `--repeat N`, latency/token stats and the exit-code rule come in M8.
+- Map Prompt Version hashes to commits (no model call, free): `uv run python -m evals.prompt_versions`; print one version's text with `--show <hash>`. Commit prompt changes before evaluating them, since uncommitted versions are only recoverable from a run's `prompt.txt`.
 
 ## Verification
 

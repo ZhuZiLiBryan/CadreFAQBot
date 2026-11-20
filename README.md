@@ -156,6 +156,22 @@ Note that much output validation is handled on the server side to limit model tr
 
 Note that exception schemas are also normalized.  Exception handlers in `backend/main.py` turn different types of erros into same JSON schema `(error, message, contact)`.  The frontend receives this and catches erros through `api.ts` (which sends the request on behalf of frontend).
 
+## Prompt Evaluation
+
+
+`evals/prompt_versions.py` maps each Prompt Version (a hash of `system.md` and `faq.md`) to the git commit that produced it. It reads git history, so nothing extra is stored.
+
+```bash
+uv run python -m evals.prompt_versions               # table of versions, newest first
+uv run python -m evals.prompt_versions --show HASH   # print that version's full prompt
+```
+Each committed change to the prompt files gets a row with its short SHA, date, and subject.
+Uncommitted edits appear as a single working tree row. Commit or stash before editing again, or that version can't be recovered.
+A revert shows up as a repeat of an earlier version.
+--show needs the exact version string from the table and exits with code 1 if nothing matches.
+
+Note that evals write the `prompt.txt` into their folder for each run under `evals/results/<UTC timestamp>/prompt.txt`. That is the prompt as it was when the run started. It's useful when you changed system.md between runs and didn't commit.
+
 ### Awareness of Code
 Although Claude remains a helpful tool, additional caution was exercised.  To keep myself in the loop, I evaluated implementations and tests after each milestone and took judgement calls on what to keep versus discard.
 For example, a following test was proposed by Claude which was inflexible and restrictive, and was removed as it wasn't a good regression test.

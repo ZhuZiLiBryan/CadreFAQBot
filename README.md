@@ -9,19 +9,55 @@ https://cadrefaqbot-production.up.railway.app/
 
 ## How it works
 
-```
-Visitor ── React chat UI ──POST /api/chat──▶ FastAPI ──▶ OpenRouter model
-                                              │             (FAQ in system prompt,
-                                              │              structured JSON out)
-                                              ▼
-                              server-side: resolve citations → guardrails → add contact/fallback text
+```mermaid
+flowchart LR
+    V([Visitor]) --> UI["React chat UI<br/>(frontend/src/App.tsx, api.ts)"]
+    UI -- "POST /api/chat<br/>{message, history (last 6)}" --> API
+
+    subgraph Server["Single Docker service on Railway (one uvicorn worker)"]
+        API["FastAPI<br/>backend/main.py"] --> VAL{"Validate<br/>request"}
+        VAL -- invalid --> E422["422 error envelope"]
+        VAL -- valid --> RL{"Rate limiter<br/>per-IP + daily cap"}
+        RL -- rejected --> E429["429 + Retry-After"]
+        RL -- accepted --> CHAT["handle_chat<br/>backend/chat.py"]
+        CHAT --> MC["ModelClient<br/>backend/model_client.py"]
+        FAQ[("faq.md + system.md<br/>= system prompt<br/>(Prompt Version hash)")] --> MC
+        MC --> GR["Output guardrails<br/>backend/guardrails.py"]
+        GR --> ASM["Reply assembly<br/>resolve citations,<br/>add Contact / Fallback Line<br/>backend/reply.py"]
+    end
+
+    MC -- "system prompt + history + message<br/>JSON-schema response" --> OR[("OpenRouter model")]
+    OR -- "{outcome, answer, citations: [FAQ numbers]}" --> MC
+    MC -. "SDK error or invalid output twice" .-> E503["503 error envelope"]
+    ASM --> UI
+    E422 --> UI
+    E429 --> UI
+    E503 --> UI
 ```
 
 1. The frontend sends the new message plus the last 6 messages. The server keeps no state.
-2. The whole FAQ is in the system prompt (no retrieval; 52 short entries fit easily).
-3. The model returns structured JSON: `{outcome, answer, citations}`. `outcome` is `answered | partial | unanswered | smalltalk`, and `citations` are FAQ entry **numbers**.
-4. The server resolves numbers to `{question, source links}`, applies output guardrails, and writes all fallback and contact text itself.
-5. The frontend renders the answer as plain text (plus allowlisted links), a citation list, and a contact block when relevant.
+2. The request is validated first (a 422 never consumes rate-limit quota), then checked against the per-IP and daily limits.
+3. The whole FAQ is in the system prompt (no retrieval; 52 short entries fit easily).
+4. The model returns structured JSON: `{outcome, answer, citations}`. `outcome` is `answered | partial | unanswered | smalltalk`, and `citations` are FAQ entry **numbers**.
+5. The server applies output guardrails, resolves numbers to `{question, source links}`, and writes all fallback and contact text itself.
+6. The frontend renders the answer as plain text (plus allowlisted `https://` links), a citation list, and a contact block when relevant.
+
+### Code map
+
+| Path | Role |
+|---|---|
+| `backend/main.py` | Routes (`POST /api/chat`, `GET /api/health`), the error-envelope exception handlers, the per-request rate-limit check, and static serving of the built frontend with SPA fallback (via `app.router.default`, so real `/api` routes and their 405s win). |
+| `backend/chat.py` | The shared chat path: build the prompt, call the model, apply guardrails, assemble the Reply. Used by the API and by the evals, so evals exercise the same server-side logic. |
+| `backend/model_client.py` | The injectable `ModelClient` interface and the real `OpenRouterClient` (`openai` SDK, SDK retries off, one retry on invalid model output, SDK errors become `UpstreamError`). Tests override it with a mock. |
+| `backend/prompts.py`, `backend/prompt_files/` | `load_prompt()` builds the system message from `system.md` + `faq.md`; `prompt_version()` hashes them. |
+| `backend/faq.py` | Strict `faq.md` parser, entry lookup, and the URL allowlist. Runs at startup. |
+| `backend/guardrails.py` | Output guardrails; returns the reasons applied. |
+| `backend/reply.py`, `backend/schemas.py` | Reply assembly (citations, Contact Line, Fallback Line) and the Pydantic request/response/error models. |
+| `backend/rate_limit.py` | In-memory per-IP rolling window and global UTC-day cap, with an injectable clock. |
+| `backend/config.py` | Readers for the integer limits (`MAX_MESSAGE_CHARS`, `MAX_HISTORY_MESSAGES`, `RATE_LIMIT_PER_MINUTE`, `DAILY_REQUEST_CAP`), read at request time. |
+| `frontend/src/` | `App.tsx` (chat UI, example chips, character counter, safe link rendering), `api.ts` (sends the request, maps errors to Visitor-facing text). |
+| `evals/` | Real-model eval harness (see [Evaluation](#evaluation)). |
+| `Dockerfile`, `railway.toml` | Multi-stage build (Node builds the frontend, Python serves everything); Dockerfile builder, health check `/api/health`, one replica. |
 
 Domain terms (Visitor, Reply, Outcome, Citation, Source, Contact Line, Fallback Line, Prompt Version) are defined in [`GLOSSARY.md`](GLOSSARY.md).
 
@@ -30,32 +66,35 @@ Domain terms (Visitor, Reply, Outcome, Citation, Source, Contact Line, Fallback 
 | Choice | Why |
 |---|---|
 | **Citations are FAQ entry IDs resolved by the server** ([ADR 0001](docs/adr/0001-server-resolved-citations.md)) | The model can't invent a source URL, and eval scoring becomes a set comparison instead of fuzzy URL matching. |
-| **One `outcome` enum instead of `can_answer` + `fully_answered` booleans** | The booleans allow nonsense combinations. Three outcomes match the three behaviors we need (answer, answer + contact, fallback). |
+| **One `outcome` enum instead of `can_answer` + `fully_answered` booleans** | The booleans allow nonsense combinations. Each outcome maps to one behavior: `answered` (answer), `partial` (answer + contact), `unanswered` (fallback + contact), `smalltalk` (brief greeting). |
 | **Server writes every contact and fallback line** | A prompt injection can't make the bot hand out a different email, price, or phone number. |
 | **Strict, machine-parsed `faq.md`** with a `Sources:` line per entry | Exact per-entry citations. The server refuses to start on a malformed FAQ, so format drift is caught at deploy, not in a chat. |
 | **Whole FAQ in the system prompt, no RAG** | The FAQ is small. Retrieval would add moving parts and a new way to miss the right entry. |
-| **Prompt Version = short sha256 of `system.md` + `faq.md`** | Can't be forgotten. Every log line and eval run traces back to the exact prompt text. |
+| **Prompt Version = short sha256 of `system.md` + `faq.md`** | Can't be forgotten. `/api/health` reports it, and every eval run records it, so results trace back to the exact prompt text. |
 | **OpenRouter via the `openai` SDK; model chosen by `OPENROUTER_MODEL`** | Swapping from the free router to a cheap paid model is an env change, not a code change. Structured output uses `response_format` JSON schema with `require_parameters: true`; no streaming, because the server needs the full reply before checking it. |
 | **Answers render as plain text; only `https://` markdown links are rendered** | Rendering model-written markdown or HTML would let an injected link, image, or script reach the page. |
 | **Follow-ups supported via client-sent history (last 6 messages)** | "How long does *it* take?" works without server-side sessions. History is treated as context, never as a source. |
 | **Small Talk is a fourth outcome, tightly boxed** | Greetings shouldn't get "I don't have that information". Because it is uncited model text, it is capped at 300 characters, may not contain links, digits, `$`, emails, or phones, and is replaced with a fixed greeting if it does. |
-| **Single process, in-memory state** | Rate limits and metrics need no Redis; no cross-origin requests to no CORS handling. The cost is that it must run as one uvicorn worker and one replica. |
+| **Single process, in-memory state** | Rate limits need no Redis, and because FastAPI serves the built frontend on the same origin there is no CORS handling. The cost is that it must run as one uvicorn worker and one replica. |
 
 ## Output guardrails
 
-Applied by the server to every model reply, each downgrade logged with a reason:
+Applied by the server to every model reply. Each change is recorded as a reason (e.g. `no_valid_citations`, `link_not_allowed`, `contact_not_allowed`, `answer_truncated`, `smalltalk_replaced`). The reasons are returned by `apply_guardrails()` and saved in eval results; the running service does not log them yet (see "Limitations and What's Next"):
 
 - Unknown citation numbers are dropped. An answered or partial reply left with **zero valid citations becomes unanswered**: no answer reaches the visitor without a valid citation.
-- Markdown links are kept only if the URL appears in the FAQ. Emails and phone numbers must match the FAQ word for word. Everything else is stripped.
-- Answers are capped at 1,200 characters. Schema-invalid model output is retried once, then treated as an upstream error.
+- Markdown links are kept only if the URL appears in the FAQ (normalized: lowercase host, `www.` and trailing slash ignored). Bare URLs not in the FAQ are removed. Emails and phone numbers must match the FAQ word for word. Everything else is stripped.
+- Answers are capped at 1,200 characters, truncated at a word boundary.
+- Small Talk is cleared of citations and replaced with a fixed greeting if it is over 300 characters or contains a URL, email, phone number, digit, or `$`.
+- Schema-invalid model output is retried once, then treated as an upstream error (503).
 
 ## Reliability and abuse protection
 
-- **Limits** (env-configurable): 10 requests/min per IP (right-most `X-Forwarded-For` entry, set by Railway's edge so clients can't spoof it), 1,000 requests/day global, 500 characters per message, 6 history messages.
-- **Retries:** 429, 5xx, timeouts, and connection errors are retried up to 3 attempts with full-jitter exponential backoff (15s per attempt, 30s overall). 400/401/403 are config bugs: not retried, returned as 500. Exhausted retries return 503 plus the contact line.
-- **Errors:** every `/api/*` failure uses one JSON envelope (`invalid_request` 422, `rate_limited`/`daily_limit` 429, `upstream_unavailable` 503, `internal_error` 500) with no exception text.
-- **Observability:** one JSON log line per chat request, **metadata only** (request ID, latency, tokens, model, served model, prompt version, outcome, guardrail reasons). No message text, except truncated unanswered questions when `LOG_UNANSWERED_TEXT=true`. `/api/metrics` (latency p50/p95/p99, counts by outcome/status/model) needs a bearer token and is off if `METRICS_TOKEN` is unset.
-- **Health:** `/api/health` checks the FAQ parse and env vars but never calls the model, so health checks cost nothing and a model outage doesn't take the site down.
+- **Limits** (env-configurable, read at request time): 10 requests/min per IP on `POST /api/chat` (rolling 60s window), 1,000 accepted requests/day globally (resets 00:00 UTC), 500 characters per message, 6 history messages. A 429 carries `Retry-After`. Invalid (422) and rejected requests never count against the quota, and `/api/health` is never limited. The limiter is in-memory, synchronous (so atomic under asyncio), prunes stale IPs to bound memory, and uses an injectable clock for tests.
+- **Client IP caveat:** the limiter keys on the right-most `X-Forwarded-For` entry, falling back to the socket peer. **On Railway the per-IP limit proved unreliable**: 14 rapid requests from one machine returned `200 200 200 429 200 200 200 429 429 200 429 200 429 429`. The cause is unconfirmed, so only the global daily cap is dependable there. See "Limitations and What's Next".
+- **Upstream failures:** the OpenRouter call is made once with SDK retries disabled. Any SDK error (timeout, 429, 5xx, bad key) becomes a 503 `upstream_unavailable` with the Contact Line, and there is no backoff or retry on transport errors. The only retry is the single re-ask when the model returns invalid JSON or breaks the schema.
+- **Errors:** every `/api/*` failure uses one JSON envelope `{error, message, contact}` with the Contact Line and no exception text: `invalid_request` 422, `rate_limited`/`daily_limit` 429, `upstream_unavailable` 503, `internal_error` 500, `not_found` 404 (unknown `/api/*` paths). The frontend maps each to distinct Visitor-facing text.
+- **Logging:** plain Python logging for upstream and unexpected errors (exception type only, no message text). There are no structured per-request logs, request IDs, or metrics endpoint yet.
+- **Health:** `/api/health` returns `{status, prompt_version, faq_entries}` and never calls the model, so health checks cost nothing and a model outage doesn't take the site down. The app refuses to start if the FAQ is malformed or `OPENROUTER_API_KEY` / `OPENROUTER_MODEL` are missing.
 
 ## Evaluation
 
@@ -65,34 +104,36 @@ Evals live in `evals/` and are deliberately **separate from pytest**: they call 
 - A case passes when its outcome matches and at least one expected FAQ entry is cited. Wording is never scored.
 - `--repeat N` samples the model several times, which matters on a router that may pick a different model per request.
 - Reports (JSONL + markdown, git-ignored) include latency mean/p50/p95/p99, token counts, and pass rates per category and per served model, plus every question, answer, and citation for **manual** groundedness grading. There is no LLM judge.
-- `unanswerable`, `injection`, and `smalltalk_injection` must stay at 100%; the run exits non-zero otherwise.
+- `unanswerable`, `injection`, and `smalltalk_injection` must stay at 100%; the run exits non-zero otherwise. (The chosen model, `gemini-2.5-flash-lite`, misses this gate on `injection` at 5/6 because of a false claim on `forced-citation-false-claim`; see [Model Selections](#model-selections).)
+- Prompt Versions map back to git commits with `evals/prompt_versions.py`; see [Prompt Evaluation](#prompt-evaluation) for how prompt changes were tested.
 
 ## Trade-offs and known limitations
 
-- **Free model for testing.** `openrouter/free` routes each request to a random free model, so behavior varies run to run, and OpenRouter caps free usage (20 requests/min; 50/day, or 1,000/day with 10+ credits purchased). It is fine for end-to-end testing; the deployed service should use a cheap paid model via `OPENROUTER_MODEL`. Evals break results down by served model and default to repeated sampling for this reason.
-- **Public before protected, by choice.** The Railway deploy (M5) lands before guardrails (M6) and rate limiting (M7) so there is a live URL early. Keep the URL unshared until M7.
+- **Model choice.** `.env.example` defaults to `openrouter/free` for end-to-end testing, but that router picks a random free model per request, so behavior varies run to run, and OpenRouter caps free usage (50 requests/day without credits). The model is chosen by `OPENROUTER_MODEL` alone. After comparing three models on the full eval set, `google/gemini-2.5-flash-lite` was chosen; see [Model Selections](#model-selections). Evals break results down by served model and support `--repeat` for this reason.
+- **The 100% eval gate is not met for the chosen model.** `gemini-2.5-flash-lite` scores 5/6 (83%) on `injection`: on `forced-citation-false-claim` it asserted "Cadre guarantees a 10x return on every project", citing entry 1, which is a real faithfulness failure that the model was accepted with knowingly. The trade is lower hallucination resistance for roughly 2-3x lower latency. The mitigation is prompt tightening, then rerunning the evals; `gpt-6-luna` (injection 100%, but `unanswerable` 4/6 from over-strict expectations) is the fallback. See [Model Selections](#model-selections).
 - **FAQ-only means some friendly questions get the fallback.** Anything outside the FAQ (including pricing) gets "I don't have that information" plus the contact options. That is the intended behavior, not a gap.
 - **Source assignments are best-effort.** FAQ sources were originally listed per group; per-entry sources were assigned from those groups and should be reviewed. FAQ #52 (partners) cites the homepage partner section, where some partners appear only as logos.
 - **No server memory.** No accounts, saved history, or live human handoff; the client resends recent turns.
-- **In-memory limits and metrics** reset on restart and don't work across multiple replicas.
+- **In-memory rate limits** reset on restart and don't work across multiple workers or replicas.
+- **Per-IP limiting is unreliable on Railway** (see above); the daily cap is the dependable cost control.
 - **Crude small-talk filter.** Rejecting digits and `$` is blunt but cheap, and it blocks the most damaging fabrications (invented prices and contact details).
 
 Out of scope: user accounts, saved chat history, admin UI, live human handoff, contact-form backend, multi-language, hosted tracing, RAG, custom domain, shared state or multiple replicas, load testing, browser E2E tests.
 
 ## Build plan
 
-Ten milestones, one PR each, each with its own acceptance checklist in [`plan.md`](plan.md):
+Ten milestones, one PR each, each with its own acceptance checklist in [`plan.md`](plan.md). Status:
 
-1. Backend scaffold + CI
-2. Frontend scaffold + CI
-3. Chat contract without a model (mocked client)
-4. Model integration, system prompt, Prompt Version, minimal evals
-5. Docker + Railway deploy (MVP)
-6. Output guardrails
-7. Rate limiting
-8. Full evals
-9. Error handling by type + retries (incl. concurrency test)
-10. Observability
+1. Backend scaffold + CI: done
+2. Frontend scaffold + CI: done
+3. Chat contract without a model (mocked client): done
+4. Model integration, system prompt, Prompt Version, minimal evals: done
+5. Docker + Railway deploy (MVP): done and deployed (the deployed-URL checkbox in `plan.md` is still unticked)
+6. Output guardrails: done
+7. Rate limiting: done, with the Railway per-IP caveat above
+8. Full evals: done
+9. Error handling by type + retries (incl. concurrency test): **not implemented**
+10. Observability: **not implemented**
 
 Each milestone follows the same loop: independent test-writer subagent → red check → implement → fresh verifier subagent → docs update → human review.
 
@@ -109,14 +150,14 @@ GLOSSARY.md         domain vocabulary
 CLAUDE.md           contributor/agent guidance and rules
 ```
 
-## Running it (planned commands)
+## Running it
 
 Requires Python 3.12 with [uv](https://docs.astral.sh/uv/), and Node 22.
 
 ```bash
-cp .env.example .env            # set OPENROUTER_API_KEY; OPENROUTER_MODEL=openrouter/free
+cp .env.example .env            # set OPENROUTER_API_KEY and OPENROUTER_MODEL (openrouter/free for testing)
 uv sync --locked
-uv run uvicorn backend.main:app --reload       # API on :8000
+uv run uvicorn backend.main:app --reload --env-file .env   # API on :8000 (the app doesn't read .env itself)
 cd frontend && npm ci && npm run dev           # UI on :5173, proxies /api
 
 uv run pytest && uv run ruff check . && uv run ruff format --check .
@@ -127,7 +168,14 @@ uv run python -m evals.run      # real model calls; costs quota
 
 Docker: one multi-stage image (Node builds the frontend, Python serves everything on `$PORT` with one worker). The API key is supplied at runtime and never baked into the image.
 
-## Data Schema
+```bash
+docker build -t cadre-faq-bot .
+docker run --rm -p 8000:8000 --env-file .env cadre-faq-bot   # then open http://localhost:8000 and /api/health
+```
+
+On Railway, `railway.toml` selects the Dockerfile builder and the `/api/health` check; set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` in the service's Variables. Never add workers or replicas.
+
+## API contract
 The chat endpoint is POST /api/chat. The frontend sends it the visitor’s new message along with recent conversation history.
 
 A request looks like this:
@@ -153,9 +201,13 @@ The model client returns one of four outcomes, and the server uses it to assembl
 | unanswered | The FAQ does not provide the information. | A fixed fallback statement and Cadre’s contact details. |
 | smalltalk | The visitor makes a conversational request, such as a greeting. | A brief reply, typically without citations. |
 
-Note that much output validation is handled on the server side to limit model trust.  For citations, the model returns FAQ entry numbers. The server looks up those entries and supplies their questions and source links. It drops numbers that do not match an entry. For an unanswered result, the server replaces the model’s answer with its own fixed fallback and clears the citations.  This keeps exception errors out of the response, allowing users to see only what we want them to see.  Hallucinated citation are verified and actively rejected, limiting hallucinations.
+Much output validation is handled on the server side to limit model trust. For citations, the model returns FAQ entry numbers. The server looks up those entries and supplies their questions and source links, and drops numbers that do not match an entry. For an unanswered result, the server replaces the model's answer with its own fixed fallback and clears the citations. Hallucinated citations are rejected, so the visitor sees only what the server has verified.
 
-Note that exception schemas are also normalized.  Exception handlers in `backend/main.py` turn different types of erros into same JSON schema `(error, message, contact)`.  The frontend receives this and catches erros through `api.ts` (which sends the request on behalf of frontend).
+A successful response looks like `{outcome, answer, citations: [{faq_id, question, sources: [{title, url}]}], contact}`. `contact` is `null` for `answered` and `smalltalk`, and the Contact Line (`{text, form_url, email}`) for `partial` and `unanswered`.
+
+Error schemas are also normalized. Exception handlers in `backend/main.py` turn every kind of error (validation, rate limit, upstream failure, unexpected exception, unknown `/api/*` path) into the same JSON shape `{error, message, contact}`, with a Visitor-safe message and no exception text. The frontend receives this and handles errors in `api.ts`, which sends the request on the frontend's behalf. A 429 also carries a `Retry-After` header.
+
+`GET /api/health` returns `{"status": "ok", "prompt_version": "...", "faq_entries": 52}` and never calls the model.
 
 ## Prompt Evaluation
 
@@ -203,7 +255,7 @@ Some performance considerations that I caught before Claude was the infinite gro
 
 
 ## Model Selections
-To choose model, an eval harness was extended in M8.  Additional test cases were supplied with reports written to disk to evaluate faithfulness/groundingness manually.  Latency was also tracked for each model tested.  Models tested here `google/gemini-2.5-flash-lite`, `openai/gpt-6-luna`, and `anthropic/claude-haiku-5.5`.  These were chosen because the task of FAQ retrieval were low on reasoning and smaller models could be sufficient, especially given the cursory initial run; moreover, their listed context windows were sufficient in fitting the prompt + FAQ.
+To choose model, an eval harness was extended in M8.  Additional test cases were supplied with reports written to disk to evaluate faithfulness/groundingness manually.  Latency was also tracked for each model tested.  Models tested here `google/gemini-2.5-flash-lite`, `openai/gpt-6-luna`, and `anthropic/claude-haiku-5.5`.  These were chosen because the task of FAQ retrieval is low on reasoning and smaller models could be sufficient, especially given the cursory initial run; moreover, their listed context windows were sufficient in fitting the prompt + FAQ.
 
 ### Gemini-2.5-flash-lite Results
 - Prompt Version: `0f347d7bdc6b`
@@ -252,17 +304,18 @@ Pass rate, latency (ms) and tokens
 | unanswerable | 5/6 | 83% | 1098 | 892 | 2366 | 2366 | 41326 | 6888 |
 
 Additionally, faithfulness and groundedness was evaluated manually through looking at the reports generated from each eval run.  Results yielded that, although Gemini's pass rate looked good, Gemini yielded faithfulness error while gpt-6-luna and haiku-5.5 did not (On forced-citation-false-claim it answered "Cadre guarantees a 10x return on every project", citing entry 1) due to injection.
-However, it is consistently the fastest model, so it has an edge on latency.  Given that all three models are near identical cost per input/output token ($0.1/M input and $0.5 or $0.4/M for output), 
-`gpt-6-luna` was chosen as the best model. While slightly more costly as far as latency, it's not exceptionally high and can be justified.  The model was more robust to faithfulness errors; while pass rates seem lower than gemini, the actual model output results
-are not inherently wrong but rather the tests didn't account for its output.  For example, two of the "unanswerable" cases that Luna fails is office hours timezone and london office.  It correctly specifies that it doesn't know, and so yields a partial answer rather than unanswerable.  Thus, for its cost, Luna is strongest for groundedness and faithfulness, making it more robust than the other models; while gemini returns a faster result making for a good chatbot experience, the safety considerations for hallucinations are more dangerous and costly.  While additional prompting could help mitigate this issue, it is still a riskier choice.
+However, it is consistently the fastest model, so it has an edge on latency.  Given that all three models are near identical cost per input/output token (roughly $0.1/M input and $0.4-0.5/M output; check current OpenRouter pricing),
+`google/gemini-2.5-flash-lite` was chosen as the best model. While reasoning is slightly more limited and was less flexible with regards to "correctness" which is slightly less user-flexible (e.g for the London Office case gemini-2.5-flash-lite response with No Info fallback while gpt-6-luna is slightly more user-intuitive saying "SD Office exists but no London office does") and as a baseline is slightly more prone to hallucinations via injections, the latency tends to be 2-3x faster than the other two models.  For a chatbot application, such latency is indispensable.  
+
+We note that all the FAQ information is publically acessible online anyway, and since the agent has no access to tools that can access private Cadre info, a small risk of hallucination is less harmful.  Moreover, the prompt can be additionally tweaked to reduce the risk. Thus, for this specific FAQ application, `gemini` is our ideal model.
 
 ## Limitations and What's Next
 
-- Known limitation for Rate limiter due to Railway
-    - Client identification is unverified: the last X-Forwarded-For address may identify a proxy rather than the visitor.
+- **Rate limiter on Railway.** The per-IP limit does not hold on the deployed service. In a test on 2026-11-20, 14 rapid valid chats from one machine returned `200 200 200 429 200 200 200 429 429 200 429 200 429 429`, so 429s were followed by 200s and more than 10 requests were accepted inside a minute. That is consistent with the right-most `X-Forwarded-For` value changing between requests, but the cause is unconfirmed (more than one running instance would look the same), and the raw header was never logged. The global daily cap does not depend on the IP and is unaffected. Next step: temporarily log the raw `X-Forwarded-For` and the resolved IP, then pick a different key or confirm the replica count.
 
-- Two milestones were planned as nice to haves, but due to time restrictions are left alone for the time being (But would be the first things to implement given more time)
-    - **Err Handling via Type/Retries**: there can be transient versus recurrent errors (e.g. hitting HTTP429, 5xx, timeouts, connection erros should allow up to 3 attempts, with exponential backoff and jitter).  Meanwhile, errors like 400 or 500 internal error do not waste time by retrying.  A nice to have to avoid user being confused why their responses keep getting errored out; however, the MVP implementation already does provide input message validation erros, rate limit erros, limit erros (429), or 503 errors.  Added benefit would have been user ease of use when retrying or understanding more permanent errors (currently left as "Something went wrong on our side")
-    - **Monitoring and Observability/Tracing**: A nice to have would have been having an `/api/metrics` route that can display JSON logs of requests.  This would a dev side feature to investigate reports of outages/failures, being able to see prompt versions, retries, reasons for guardrails, etc.  
+- Two milestones were planned as nice to haves, but due to time restrictions are not implemented (they would be the first things to build given more time):
+    - **M9, error handling by type and retries**: separate transient errors from permanent ones. HTTP 429, 5xx, timeouts and connection errors would get up to 3 attempts with full-jitter exponential backoff (15s per attempt, 30s overall deadline, honoring `Retry-After` only if it fits), while 400/401/403 would be logged as configuration errors and not retried, and an OpenRouter 404 would map to 503. Today every SDK error becomes a 503 `upstream_unavailable` with the Contact Line, and an unexpected exception becomes a 500 shown as "Something went wrong on our side." Validation (422), rate-limit and daily-limit (429), and 503 errors are already handled. M9 also planned a 50-request concurrency test against a slow mocked model.
+    - **M10, observability**: one privacy-safe JSON log line per chat request (request ID, latency, tokens, model, served model, Prompt Version, outcome, guardrail reasons, retries), an `X-Request-ID` shown to the Visitor in error bubbles, and a bearer-token-protected `/api/metrics` route (counts by outcome, status and model, latency p50/p95/p99, rate-limit rejections) as a developer-side tool for investigating outages. Today guardrail reasons are only visible in eval results.
 
+- Smaller follow-ups: loosen the `office-hours-timezone` and `london-office` eval expectations to accept faithful `partial` answers and rerun the evals, and review the per-entry FAQ source assignments.
 

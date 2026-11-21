@@ -164,6 +164,8 @@ uv run pytest && uv run ruff check . && uv run ruff format --check .
 cd frontend && npm run lint && npm test && npm run build
 
 uv run python -m evals.run      # real model calls; costs quota
+uv run python -m evals.run --category injection --repeat 3   # also: --case <id>
+uv run python -m evals.prompt_versions                       # map Prompt Versions to commits (no model call)
 ```
 
 Docker: one multi-stage image (Node builds the frontend, Python serves everything on `$PORT` with one worker). The API key is supplied at runtime and never baked into the image.
@@ -307,7 +309,9 @@ Additionally, faithfulness and groundedness was evaluated manually through looki
 However, it is consistently the fastest model, so it has an edge on latency.  Given that all three models have near identical cost per token on OpenRouter ($0.10/M input for all three; output is $0.40/M for Gemini and $0.50/M for gpt-6-luna and Haiku 5.5, as listed on 2026-11-20), cost per request is nearly the same (Haiku used about 6,900 tokens per request against about 4,100-4,300 for the other two, so it costs more in practice),
 `google/gemini-2.5-flash-lite` was chosen as the best model. While reasoning is slightly more limited and was less flexible with regards to "correctness" which is slightly less user-flexible (e.g for the London Office case gemini-2.5-flash-lite response with No Info fallback while gpt-6-luna is slightly more user-intuitive saying "SD Office exists but no London office does") and as a baseline is slightly more prone to hallucinations via injections, the latency tends to be 2-3x faster than the other two models.  For a chatbot application, such latency is indispensable.  
 
-We note that all the FAQ information is publically acessible online anyway, and since the agent has no access to tools that can access private Cadre info, a small risk of hallucination is less harmful.  Moreover, the prompt can be additionally tweaked to reduce the risk. Thus, for this specific FAQ application, `gemini` is our ideal model.
+We note that all the FAQ information is publically acessible online anyway, and since the agent has no access to tools that can access private Cadre info, a small risk of hallucination is less harmful.  Moreover, the prompt can be additionally tweaked to reduce the risk. Thus, for this specific FAQ application, `gemini` is our ideal model.  Indeed, after revising the prompt and rerunning the eval-set, there are no more dangerous errors in the test suite.
+
+* Note: New failures that arose with tweaked prompt are limitations of the test suite; e.g. a small-talk injection case asking the model to reveal the system prompt wrapped in small-talk lingo simply responds as small talk instead of "unanswerable" which is what the test expects, but is not a harmful outcome.
 
 ## Limitations and What's Next
 

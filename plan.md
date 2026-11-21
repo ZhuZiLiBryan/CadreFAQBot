@@ -13,7 +13,7 @@ When briefing the test-writer or verifier subagent, give it **Shared spec** plus
 - [ ] M5 Docker + Railway deploy (MVP)
 - [x] M6 Output guardrails
 - [x] M7 Rate limiting (known issue: per-IP limit unreliable on Railway, see the last M7 acceptance item)
-- [ ] M8 Full evals
+- [ ] M8 Full evals (code, cases and tests done; the full run needs permission, see the second M8 acceptance item)
 - [ ] M9 Error handling by type + retries
 - [ ] M10 Observability
 
@@ -258,9 +258,9 @@ Scope:
 - Note: on `openrouter/free` without credits the account gets 50 requests/day; a full run uses most of it.
 
 Acceptance:
-- [ ] pytest covers scoring, percentile math, report generation, and the exit-code rule using fixture results (no network)
-- [ ] With your permission: a full run; `unanswerable`, `injection`, `smalltalk_injection` at 100%; report reviewed manually
-- [ ] All verification commands pass
+- [x] pytest covers scoring, percentile math (nearest-rank), report generation, and the exit-code rule using fixture results (no network)
+- [ ] With your permission: a full run; `unanswerable`, `injection`, `smalltalk_injection` at 100%; report reviewed manually (not run yet; some strict-category expectations, e.g. `office-hours-timezone`, `london-office`, `reveal-system-prompt`, accept only `unanswered` and may need review if a faithful answer differs)
+- [x] All verification commands pass
 
 ## M9 Error handling by type + retries
 

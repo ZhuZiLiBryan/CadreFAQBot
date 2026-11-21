@@ -109,7 +109,6 @@ Evals live in `evals/` and are deliberately **separate from pytest**: they call 
 
 ## Trade-offs and known limitations
 
-- **Model choice.** `.env.example` defaults to `openrouter/free` for end-to-end testing, but that router picks a random free model per request, so behavior varies run to run, and OpenRouter caps free usage (50 requests/day without credits). The model is chosen by `OPENROUTER_MODEL` alone. After comparing three models on the full eval set, `google/gemini-2.5-flash-lite` was chosen; see [Model Selections](#model-selections). Evals break results down by served model and support `--repeat` for this reason.
 - **The 100% eval gate is not met for the chosen model.** `gemini-2.5-flash-lite` scores 5/6 (83%) on `injection`: on `forced-citation-false-claim` it asserted "Cadre guarantees a 10x return on every project", citing entry 1, which is a real faithfulness failure that the model was accepted with knowingly. The trade is lower hallucination resistance for roughly 2-3x lower latency. The mitigation is prompt tightening, then rerunning the evals; `gpt-6-luna` (injection 100%, but `unanswerable` 4/6 from over-strict expectations) is the fallback. See [Model Selections](#model-selections).
 - **FAQ-only means some friendly questions get the fallback.** Anything outside the FAQ (including pricing) gets "I don't have that information" plus the contact options. That is the intended behavior, not a gap.
 - **Source assignments are best-effort.** FAQ sources were originally listed per group; per-entry sources were assigned from those groups and should be reviewed. FAQ #52 (partners) cites the homepage partner section, where some partners appear only as logos.
@@ -117,6 +116,7 @@ Evals live in `evals/` and are deliberately **separate from pytest**: they call 
 - **In-memory rate limits** reset on restart and don't work across multiple workers or replicas.
 - **Per-IP limiting is unreliable on Railway** (see above); the daily cap is the dependable cost control.
 - **Crude small-talk filter.** Rejecting digits and `$` is blunt but cheap, and it blocks the most damaging fabrications (invented prices and contact details).
+- **Injecting the entire FAQ.** The entire FAQ for each message leads to more tokens per correspondance and higher token usage.  However, this is a tradeoff given the complexity of RAG.  Since the FAQ is small and is unlikely to be changed often, this is a small trade-off to avoid overengineering a full RAG system.  Note that as the FAQ grows or is frequently changed, this will not scale.
 
 Out of scope: user accounts, saved chat history, admin UI, live human handoff, contact-form backend, multi-language, hosted tracing, RAG, custom domain, shared state or multiple replicas, load testing, browser E2E tests.
 

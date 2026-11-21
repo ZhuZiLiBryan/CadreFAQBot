@@ -202,6 +202,60 @@ Both got 404 instead of 405.  Catching this allowed me to apply a fix of I setti
 Some performance considerations that I caught before Claude was the infinite growth of IPs collected for the Rate Limiter.  The original implementation had no way to clear IPs so for a long running process, IPs could easily pile up and eventually run out of memory.  I implemented a pruning function that would check for IPs with its most recent requests beyond the rate limiting window, which would clear out old functions.  This introduces a tradeoff because for requests we're always checking for Stale IPs, but prevents process crash due to overflowing memory.
 
 
+## Model Selections
+To choose model, an eval harness was extended in M8.  Additional test cases were supplied with reports written to disk to evaluate faithfulness/groundingness manually.  Latency was also tracked for each model tested.  Models tested here `google/gemini-2.5-flash-lite`, `openai/gpt-6-luna`, and `anthropic/claude-haiku-5.5`.  These were chosen because the task of FAQ retrieval were low on reasoning and smaller models could be sufficient, especially given the cursory initial run; moreover, their listed context windows were sufficient in fitting the prompt + FAQ.
+
+### Gemini-2.5-flash-lite Results
+- Prompt Version: `0f347d7bdc6b`
+- Configured model: `google/gemini-2.5-flash-lite`
+Pass rate, latency (ms) and tokens
+
+| group | passed | rate | latency mean | p50 | p95 | p99 | tokens total | tokens mean |
+|---|---|---|---|---|---|---|---|---|
+| overall | 34/35 | 97% | 658 | 614 | 1075 | 1336 | 151665 | 4333 |
+| answerable | 13/13 | 100% | 699 | 658 | 1075 | 1075 | 56512 | 4347 |
+| injection | 5/6 | 83% | 550 | 546 | 596 | 596 | 25919 | 4320 |
+| partial | 4/4 | 100% | 625 | 590 | 722 | 722 | 17381 | 4345 |
+| smalltalk | 3/3 | 100% | 615 | 614 | 722 | 722 | 12999 | 4333 |
+| smalltalk_injection | 3/3 | 100% | 693 | 625 | 834 | 834 | 13029 | 4343 |
+| unanswerable | 6/6 | 100% | 703 | 570 | 1336 | 1336 | 25825 | 4304 |
+
+### GPT-6-Luna Results
+- Prompt Version: `0f347d7bdc6b`
+- Configured model: `openai/gpt-6-luna`
+Pass rate, latency (ms) and tokens
+
+| group | passed | rate | latency mean | p50 | p95 | p99 | tokens total | tokens mean |
+|---|---|---|---|---|---|---|---|---|
+| overall | 32/35 | 91% | 1461 | 1207 | 2697 | 2930 | 143105 | 4089 |
+| answerable | 12/13 | 92% | 1364 | 1157 | 2682 | 2682 | 53340 | 4103 |
+| injection | 6/6 | 100% | 1621 | 1173 | 2930 | 2930 | 24434 | 4072 |
+| partial | 4/4 | 100% | 2053 | 1595 | 2697 | 2697 | 16528 | 4132 |
+| smalltalk | 3/3 | 100% | 957 | 964 | 1028 | 1028 | 12165 | 4055 |
+| smalltalk_injection | 3/3 | 100% | 1629 | 1356 | 2419 | 2419 | 12302 | 4101 |
+| unanswerable | 4/6 | 67% | 1283 | 1067 | 1891 | 1891 | 24336 | 4056 |
+
+### Claude Haiku-5.5 Results
+- Prompt Version: `0f347d7bdc6b`
+- Configured model: `anthropic/claude-haiku-5.5`
+- Results: 35
+Pass rate, latency (ms) and tokens
+
+| group | passed | rate | latency mean | p50 | p95 | p99 | tokens total | tokens mean |
+|---|---|---|---|---|---|---|---|---|
+| overall | 31/35 | 89% | 1432 | 1052 | 3582 | 3903 | 242642 | 6933 |
+| answerable | 11/13 | 85% | 1591 | 1100 | 3903 | 3903 | 90860 | 6989 |
+| injection | 5/6 | 83% | 1405 | 988 | 3055 | 3055 | 41592 | 6932 |
+| partial | 4/4 | 100% | 1574 | 1171 | 2727 | 2727 | 27671 | 6918 |
+| smalltalk | 3/3 | 100% | 904 | 956 | 1052 | 1052 | 20636 | 6879 |
+| smalltalk_injection | 3/3 | 100% | 1802 | 1159 | 3582 | 3582 | 20557 | 6852 |
+| unanswerable | 5/6 | 83% | 1098 | 892 | 2366 | 2366 | 41326 | 6888 |
+
+Additionally, faithfulness and groundedness was evaluated manually through looking at the reports generated from each eval run.  Results yielded that, although Gemini's pass rate looked good, Gemini yielded faithfulness error while gpt-6-luna and haiku-5.5 did not (On forced-citation-false-claim it answered "Cadre guarantees a 10x return on every project", citing entry 1) due to injection.
+However, it is consistently the fastest model, so it has an edge on latency.  Given that all three models are near identical cost per input/output token ($0.1/M input and $0.5 or $0.4/M for output), 
+`gpt-6-luna` was chosen as the best model. While slightly more costly as far as latency, it's not exceptionally high and can be justified.  The model was more robust to faithfulness errors; while pass rates seem lower than gemini, the actual model output results
+are not inherently wrong but rather the tests didn't account for its output.  For example, two of the "unanswerable" cases that Luna fails is office hours timezone and london office.  It correctly specifies that it doesn't know, and so yields a partial answer rather than unanswerable.  Thus, for its cost, Luna is strongest for groundedness and faithfulness, making it more robust than the other models; while gemini returns a faster result making for a good chatbot experience, the safety considerations for hallucinations are more dangerous and costly.  While additional prompting could help mitigate this issue, it is still a riskier choice.
+
 ## Limitations and What's Next
 
 - Known limitation for Rate limiter due to Railway

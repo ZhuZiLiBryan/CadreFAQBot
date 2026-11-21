@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent, ReactNode } from "react";
 import "./App.css";
 import {
   ChatError,
@@ -110,10 +110,38 @@ function ReplyBubble({ reply }: { reply: ChatReply }) {
   );
 }
 
+function ThinkingIndicator() {
+  return (
+    <div className="message assistant thinking" role="status">
+      <span className="visually-hidden">Thinking…</span>
+      <span className="dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+    </div>
+  );
+}
+
 export default function App() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const messagesRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Keep the newest message in view.
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, loading]);
+
+  // The textarea is disabled while a request is pending; hand focus back afterwards.
+  const wasLoading = useRef(false);
+  useEffect(() => {
+    if (wasLoading.current && !loading) inputRef.current?.focus();
+    wasLoading.current = loading;
+  }, [loading]);
 
   const overLimit = input.length > MAX_MESSAGE_CHARS;
   const canSend = input.trim().length > 0 && !overLimit && !loading;
@@ -132,8 +160,20 @@ export default function App() {
     return entries.slice(-MAX_HISTORY_MESSAGES);
   }
 
-  async function handleSubmit(event: FormEvent) {
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    // Enter sends; Shift+Enter inserts a newline; ignore Enter that confirms an IME composition.
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      void submit();
+    }
+  }
+
+  function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    void submit();
+  }
+
+  async function submit() {
     if (!canSend) return;
     const text = input.trim();
     const history = buildHistory();
@@ -168,25 +208,30 @@ export default function App() {
         <h1>Cadre AI FAQ Bot</h1>
       </header>
 
-      <section className="messages" aria-label="Conversation">
+      <section className="messages" aria-label="Conversation" ref={messagesRef}>
         <div className="message assistant">
           <p>
             Welcome! I can answer questions about Cadre AI using Cadre's FAQ. If
             the FAQ doesn't cover something, I'll point you to the Cadre team.
           </p>
         </div>
-        <div className="chips">
-          {EXAMPLE_QUESTIONS.map((question) => (
-            <button
-              key={question}
-              type="button"
-              className="chip"
-              onClick={() => setInput(question)}
-            >
-              {question}
-            </button>
-          ))}
-        </div>
+        {messages.length === 0 && (
+          <div className="chips">
+            {EXAMPLE_QUESTIONS.map((question) => (
+              <button
+                key={question}
+                type="button"
+                className="chip"
+                onClick={() => {
+                  setInput(question);
+                  inputRef.current?.focus();
+                }}
+              >
+                {question}
+              </button>
+            ))}
+          </div>
+        )}
         {messages.map((message) => {
           if (message.kind === "user") {
             return (
@@ -205,25 +250,33 @@ export default function App() {
             </div>
           );
         })}
-        {loading && (
-          <div className="message assistant" role="status">
-            <p>Thinking…</p>
-          </div>
-        )}
+        {loading && <ThinkingIndicator />}
       </section>
 
       <form onSubmit={handleSubmit}>
         <div className="input-row">
           <textarea
+            ref={inputRef}
             aria-label="Your question"
             placeholder="Ask a question about Cadre AI"
-            rows={2}
+            rows={1}
             value={input}
             disabled={loading}
+            autoFocus
             onChange={(event) => setInput(event.target.value)}
+            onKeyDown={handleKeyDown}
           />
-          <button type="submit" disabled={!canSend}>
-            Send
+          <button type="submit" className="send" aria-label="Send" disabled={!canSend}>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path
+                d="M12 19V5M5 12l7-7 7 7"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </div>
         <div className={overLimit ? "counter over-limit" : "counter"}>

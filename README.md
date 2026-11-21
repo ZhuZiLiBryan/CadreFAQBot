@@ -260,3 +260,9 @@ are not inherently wrong but rather the tests didn't account for its output.  Fo
 
 - Known limitation for Rate limiter due to Railway
     - Client identification is unverified: the last X-Forwarded-For address may identify a proxy rather than the visitor.
+
+- Two milestones were planned as nice to haves, but due to time restrictions are left alone for the time being (But would be the first things to implement given more time)
+    - **Err Handling via Type/Retries**: there can be transient versus recurrent errors (e.g. hitting HTTP429, 5xx, timeouts, connection erros should allow up to 3 attempts, with exponential backoff and jitter).  Meanwhile, errors like 400 or 500 internal error do not waste time by retrying.  A nice to have to avoid user being confused why their responses keep getting errored out; however, the MVP implementation already does provide input message validation erros, rate limit erros, limit erros (429), or 503 errors.  Added benefit would have been user ease of use when retrying or understanding more permanent errors (currently left as "Something went wrong on our side")
+    - **Monitoring and Observability/Tracing**: A nice to have would have been having an `/api/metrics` route that can display JSON logs of requests.  This would a dev side feature to investigate reports of outages/failures, being able to see prompt versions, retries, reasons for guardrails, etc.  
+
+
